@@ -1,0 +1,6 @@
+__pycache__/
+.venv/
+Google_Maps_Data/
+dist/
+build/
+*.spec

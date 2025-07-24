@@ -49,6 +49,13 @@ class GoogleMapsScraper:
                     await self._scrape_results(page, query, total_results)
 
                 await browser.close()
+                filename_base = f"{query.replace(' ', '_')}"
+                saved_file = self.business_list.save_data(filename_base)
+        
+                if saved_file:
+                    self.update_status(f"Saved data to '{saved_file}.xlsx.")
+
+                self.business_list = BusinessList()
                 self.update_status("Scraping finished successfully!")
 
         except Exception as e:
@@ -105,13 +112,15 @@ class GoogleMapsScraper:
                     continue # Move to the next listing
 
         # Save the collected data for the current search query
-        filename_base = f"{query.replace(' ', '_')}"
-        saved_file = self.business_list.save_data(filename_base)
-        if saved_file:
-            self.update_status(f"Saved data to '{saved_file}.xlsx.")
+        
+        # filename_base = f"{query.replace(' ', '_')}"
+        # saved_file = self.business_list.save_data(filename_base)
+        
+        # if saved_file:
+        #     self.update_status(f"Saved data to '{saved_file}.xlsx.")
         
         # Clear list for the next search query
-        self.business_list = BusinessList()
+        #self.business_list = BusinessList()
 
     async def _scroll_and_collect_listings(self, page: Page, total_results: int) -> list[Locator]:
         """Scrolls down the search results pane to load all businesses."""
