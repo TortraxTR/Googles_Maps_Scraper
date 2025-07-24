@@ -26,7 +26,7 @@ class GoogleMapsScraper:
         self.pause_event = pause_event
         self.business_list = BusinessList()
 
-    async def run(self, search_queries: list[str], total_results: int):
+    async def run(self, search_queries: list[str], total_results: int, headless_mode: bool):
         """
         The main entry point for the scraper. It sets up Playwright and
         iterates through the search queries.
@@ -38,11 +38,12 @@ class GoogleMapsScraper:
 
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                browser = await p.chromium.launch(headless=headless_mode)
                 page = await browser.new_page(locale="en-US")
                 await page.goto("https://www.google.com/maps", timeout=60000)
 
                 for i, query in enumerate(search_queries):
+                    
                     self.pause_event.wait()  # Checks if paused before starting a new search.
                     self.update_status(f"--- ({i + 1}/{len(search_queries)}) Searching for: {query} ---")
                     await self._perform_search(page, query)

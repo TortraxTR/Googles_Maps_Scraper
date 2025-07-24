@@ -21,7 +21,7 @@ class ScraperGUI:
         self.is_paused = False
         self.pause_event = threading.Event()
         self.pause_event.set()  # Set to True initially (not paused)
-
+        self.headless_var = tk.BooleanVar(value=True)
         self._setup_widgets()
 
     def _setup_widgets(self):
@@ -45,10 +45,12 @@ class ScraperGUI:
         self.total_entry.grid(row=2, column=1, sticky="ew", pady=2)
         #self.total_entry.insert(0, "100")
 
+
+
         # Buttons
         button_frame = tk.Frame(main_frame)
-        button_frame.grid(row=3, column=0, columnspan=2, pady=10)
-        
+        button_frame.grid(row=3, column=0, columnspan=3, pady=10)
+
         self.input_file_button = tk.Button(button_frame, text="Read Input File", command=partial(self.start_scraping, True))
         self.input_file_button.pack(side=tk.LEFT, padx=5)
 
@@ -58,13 +60,16 @@ class ScraperGUI:
         self.pause_button = tk.Button(button_frame, text="Pause", command=self.toggle_pause, state=tk.DISABLED)
         self.pause_button.pack(side=tk.LEFT, padx=5)
 
+        self.headless_check = tk.Checkbutton(main_frame, text="Run in Headless Mode (faster, no visible browser)", variable=self.headless_var)
+        self.headless_check.grid(row=4, column=0, columnspan=3, sticky="w", pady=5)
+
         # Status area
-        tk.Label(main_frame, text="Log:").grid(row=4, column=0, sticky="w", pady=2)
+        tk.Label(main_frame, text="Log:").grid(row=5, column=0, sticky="w", pady=2)
         self.status_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, height=15, state=tk.DISABLED)
-        self.status_text.grid(row=5, column=0, columnspan=2, sticky="nsew")
+        self.status_text.grid(row=6, column=0, columnspan=2, sticky="nsew")
 
         main_frame.grid_columnconfigure(1, weight=1)
-        main_frame.grid_rowconfigure(5, weight=1)
+        main_frame.grid_rowconfigure(6, weight=1)
 
     def update_status(self, message: str):
         """
@@ -137,7 +142,8 @@ class ScraperGUI:
         scraper = GoogleMapsScraper(self.update_status, self.pause_event)
         
         try:
-            loop.run_until_complete(scraper.run(queries, total_results))
+            headless_mode = self.headless_var.get()
+            loop.run_until_complete(scraper.run(queries, total_results, headless_mode))
         finally:
             loop.close()
             # Schedule GUI update on the main thread
