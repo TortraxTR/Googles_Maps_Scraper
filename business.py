@@ -13,7 +13,7 @@ class Business:
     address: str
     phone_number: str 
     website: str
-    email: str
+    email_list: list[str]
     query: str 
     latitude: float
     longitude: float

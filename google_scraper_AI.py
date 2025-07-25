@@ -3,8 +3,9 @@ import re # Import regex module
 from business import Business, BusinessList
 from ui_selectors import UI_SELECTORS
 from playwright.async_api import async_playwright, Page, Locator, Browser
+import os
 
-def extract_coordinates_from_url(url: str) -> tuple[float | None, float | None]:
+def extract_coordinates_from_url(url):
     """
     A helper function to parse latitude and longitude from a Google Maps URL.
     Example URL: https://www.google.com/maps/place/business/@34.05,-118.24,15z
@@ -30,7 +31,7 @@ class GoogleMapsScraper:
         self.lock = asyncio.Lock()
         self.browser = None
 
-    async def run(self, search_queries: list[str], total_results: int, headless_mode):
+    async def run(self, search_queries, total_results, headless_mode):
         """
         The main entry point for the scraper. It launches a browser and then runs
         all search queries in parallel tasks.
@@ -46,12 +47,12 @@ class GoogleMapsScraper:
                 self.browser = browser
                 self.update_status("Browser instance started.")
 
+                semaphore = asyncio.Semaphore(os.cpu_count()-2)
                 # Create a list of concurrent tasks, one for each query.
                 tasks = [
-                    self._process_query(browser, query, total_results)
+                    self._process_query(browser, query, total_results, semaphore)
                     for query in search_queries
                 ]
-                
                 # Run all scraping tasks in parallel and wait for them to complete.
                 await asyncio.gather(*tasks)
 
@@ -77,26 +78,27 @@ class GoogleMapsScraper:
             self.update_status(f"A critical error occurred: {e}")
             print(f"Error: {e}") # Also print to console for debugging
 
-    async def _process_query(self, browser: Browser, query: str, total_results: int):
+    async def _process_query(self, browser, query, total_results, semaphore):
         """
         Handles the entire scraping process for a single query in its own page (tab).
         This method is designed to be run as a concurrent task.
         """
-        self.pause_event.wait() # Check if pause event is set
-        page = await browser.new_page(locale="en-US")
-        self.update_status(f"INFO: Page created for query: '{query}'")
-        try:
-            await page.goto("https://www.google.com/maps", timeout=60000)
-            await self._perform_search(page, query)
-            await self._scrape_results(page, query, total_results)
-        except Exception as e:
-            self.update_status(f"ERROR: Could not process query '{query}': {e}")
-            print(f"Error processing query '{query}': {e}")
-        finally:
-            await page.close()
-            self.update_status(f"INFO: Page for query '{query}' closed.")
+        async with semaphore:
+            self.pause_event.wait() # Check if pause event is set
+            page = await browser.new_page(locale="en-US")
+            self.update_status(f"INFO: Page created for query: '{query}'")
+            try:
+                await page.goto("https://www.google.com/maps", timeout=60000)
+                await self._perform_search(page, query)
+                await self._scrape_results(page, query, total_results)
+            except Exception as e:
+                self.update_status(f"ERROR: Could not process query '{query}': {e}")
+                print(f"Error processing query '{query}': {e}")
+            finally:
+                await page.close()
+                self.update_status(f"INFO: Page for query '{query}' closed.")
 
-    async def _add_business_safely(self, business: Business):
+    async def _add_business_safely(self, business):
         """
         A thread-safe method to add a business to the shared list. It uses a lock
         to ensure that only one task can modify the list at a time.
@@ -139,6 +141,7 @@ class GoogleMapsScraper:
                     if business and business.name:
                         await self._add_business_safely(business)
                         self.update_status(f"  ({i+1}/{len(listings)}) Scraped for '{query}': {business.name}")
+                    
                 except Exception as e:
                     self.update_status(f"  Error scraping listing {i+1} for '{query}': {e}")
                     # Optionally, navigate back to the listings page if an error occurs to continue scraping
@@ -180,7 +183,7 @@ class GoogleMapsScraper:
         # Return only up to total_results listings
         return (await listings_locator.all())[:total_results]
 
-    async def _extract_email_from_website(self, page: Page, website_url: str) -> str | None:
+    async def _extract_email_from_website(self, website_url):
         """
         Navigates to the given website URL and attempts to extract an email address.
         It tries to find common email patterns in the page content.
@@ -191,6 +194,7 @@ class GoogleMapsScraper:
         email = None
         # Regex for common email patterns
         email_regex = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+        email_list = []
 
         try:
             # Create a new page context to navigate to the website
@@ -200,30 +204,27 @@ class GoogleMapsScraper:
             # Try to navigate to the website
             await website_page.goto(website_url, timeout=10000, wait_until='domcontentloaded') # Shorter timeout for external site
             await asyncio.sleep(2) # Give some time for content to load
-
+            
             # Get text content of the entire page
             page_content = await website_page.content()
-            
+
             # Search for email in the main content
-            match = re.search(email_regex, page_content)
-            if match:
-                email = match.group(0)
-                self.update_status(f"  Found email on main site: {email}")
+            email_list = re.findall(email_regex, page_content)
+            if email_list:
+                self.update_status(f"Found emails on main site: {email_list}")
             
             # If no email found on main page, try common contact pages
-            if not email:
-                contact_page_urls = [f"{website_url}/iletisim", f"{website_url}/contact", f"{website_url}/about", f"{website_url}/contact-us",  f"{website_url}/cdn-cgi/l/email-protection"]
-                
+            else:
+                contact_page_urls = [f"{website_url}/iletisim"]
                 for contact_url in contact_page_urls:
                     try:
                         await website_page.goto(contact_url, timeout=5000, wait_until='domcontentloaded')
                         await asyncio.sleep(1)
                         contact_page_content = await website_page.content()
-                        match = re.search(email_regex, contact_page_content)
-                        if match:
-                            email = match.group(0)
-                            self.update_status(f"  Found email on contact page ({contact_url}): {email}")
-                            break # Found email, no need to check other contact pages
+                        email_list = email_list.append(re.findall(email_regex, contact_page_content))
+                        # if match:
+                        #     email = match.group()
+                        #     self.update_status(f"  Found email on contact page ({contact_url}): {email}")
                     except Exception:
                         # Ignore errors for non-existent contact pages
                         continue
@@ -233,8 +234,7 @@ class GoogleMapsScraper:
         finally:
             # Ensure the website page is closed
             await website_page.close()
-        
-        return email
+        return email_list
 
     async def _extract_business_data(self, page: Page, query:str) -> Business:
         """Extracts the details of a single business from the page."""
@@ -253,15 +253,15 @@ class GoogleMapsScraper:
         lat, lon = extract_coordinates_from_url(page.url)
 
         # Attempt to extract email from the business's website
-        extracted_email = None
-        if website: # Only try to extract email if a website exists
-            # Ensure the website URL has a proper schema, default to https
-            if not website.strip().startswith("http"):
-                full_website_url = f"https://{website.strip()}"
-            else:
-                full_website_url = website.strip()
+        # extracted_emails = None
+        # if website: # Only try to extract email if a website exists
+        #     # Ensure the website URL has a proper schema, default to https
+        #     if not website.strip().startswith("http"):
+        #         full_website_url = f"https://{website.strip()}"
+        #     else:
+        #         full_website_url = website.strip()
             
-            extracted_email = await self._extract_email_from_website(page, full_website_url)
+        #     extracted_emails = await self._extract_email_from_website(self, full_website_url)
 
         return Business(
             name=name.strip(),
@@ -271,5 +271,14 @@ class GoogleMapsScraper:
             query=query,
             latitude=lat,
             longitude=lon,
-            email=extracted_email # Pass the extracted email
+            email_list=None # Pass the extracted email
         )
+
+    async def _email_extraction_for_business(self):
+        for business in self.business_list:
+            if business.website:
+                    if not business.website.strip().startswith("http"):
+                        full_website_url = f"https://{website.strip()}"
+                    else:
+                        full_website_url = business.website.strip()
+                    business.email_list = _extract_email_from_website(self, full_website_url)

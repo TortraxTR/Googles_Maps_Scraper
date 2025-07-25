@@ -45,8 +45,6 @@ class ScraperGUI:
         self.total_entry.grid(row=2, column=1, sticky="ew", pady=2)
         #self.total_entry.insert(0, "100")
 
-
-
         # Buttons
         button_frame = tk.Frame(main_frame)
         button_frame.grid(row=3, column=0, columnspan=3, pady=10)
