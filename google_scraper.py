@@ -3,7 +3,7 @@ from business import Business, BusinessList
 from ui_selectors import UI_SELECTORS
 from playwright.async_api import async_playwright, Page, Locator
 
-def extract_coordinates_from_url(url: str) -> tuple[float | None, float | None]:
+def extract_coordinates_from_url(url):
     """
     A helper function to parse latitude and longitude from a Google Maps URL.
     Example URL: https://www.google.com/maps/place/business/@34.05,-118.24,15z
@@ -25,8 +25,9 @@ class GoogleMapsScraper:
         self.update_status = gui_update_callback
         self.pause_event = pause_event
         self.business_list = BusinessList()
+        self.lock = asyncio.Lock()
 
-    async def run(self, search_queries: list[str], total_results: int, headless_mode: bool):
+    async def run(self, search_queries, total_results, headless_mode):
         """
         The main entry point for the scraper. It sets up Playwright and
         iterates through the search queries.
@@ -63,15 +64,15 @@ class GoogleMapsScraper:
             self.update_status(f"An unexpected error occurred: {e}")
             print(f"Error: {e}") # Also print to console for debugging
 
-    async def run_field(self, categories: list[str], locations: list[str], total_results: int):
+    async def run_field(self, categories, locations, total_results):
         """
         The main entry point for the scraper. It sets up Playwright and
         iterates through the search queries.
         """
         search_queries = [f"{cat} {loc}" for cat in categories for loc in locations]
-        await self.run_input_file(self, search_queries, total_results)
-
-    async def _perform_search(self, page: Page, query: str):
+        await self.run(self, search_queries, total_results)
+    
+    async def _perform_search(self, page, query):
         """Handles the process of typing a search query and executing it."""
         self.pause_event.wait()
         search_box = page.locator(UI_SELECTORS["search_input"])
@@ -82,7 +83,7 @@ class GoogleMapsScraper:
         await page.wait_for_url("**/search/**", timeout=30000) # Wait for search results to load
         await asyncio.sleep(3)
 
-    async def _scrape_results(self, page: Page, query: str, total_results: int):
+    async def _scrape_results(self, page, query, total_results):
         """Manages the scraping of search results, including scrolling and data extraction."""
         self.update_status("Scrolling to collect all business listings...")
         listings = await self._scroll_and_collect_listings(page, total_results)
@@ -112,18 +113,7 @@ class GoogleMapsScraper:
                     self.update_status(f"  Error scraping listing {i+1}: {e}")
                     continue # Move to the next listing
 
-        # Save the collected data for the current search query
-        
-        # filename_base = f"{query.replace(' ', '_')}"
-        # saved_file = self.business_list.save_data(filename_base)
-        
-        # if saved_file:
-        #     self.update_status(f"Saved data to '{saved_file}.xlsx.")
-        
-        # Clear list for the next search query
-        #self.business_list = BusinessList()
-
-    async def _scroll_and_collect_listings(self, page: Page, total_results: int) -> list[Locator]:
+    async def _scroll_and_collect_listings(self, page, total_results) -> list[Locator]:
         """Scrolls down the search results pane to load all businesses."""
         listings_locator = page.locator(UI_SELECTORS["search_results_list"])
         
@@ -157,10 +147,10 @@ class GoogleMapsScraper:
 
         return await listings_locator.all()
 
-    async def _extract_business_data(self, page: Page, query:str) -> Business:
+    async def _extract_business_data(self, page, query) -> Business:
         """Extracts the details of a single business from the page."""
         
-        async def get_text(selector: str) -> str:
+        async def get_text(selector):
             """Helper to safely get text from a locator."""
             try:
                 return await page.locator(selector).first.inner_text(timeout=2000)

@@ -4,4 +4,3 @@ Google_Maps_Data/
 dist/
 build/
 *.spec
-google_scraper_AI.py

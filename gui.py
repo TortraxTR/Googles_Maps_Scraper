@@ -1,7 +1,7 @@
 import asyncio
 import threading
 import tkinter as tk
-from google_scraper import GoogleMapsScraper
+from google_scraper_AI import GoogleMapsScraper
 from tkinter import messagebox, scrolledtext
 from functools import partial 
 

@@ -9,13 +9,14 @@ class Business:
     A dataclass to hold the information for a single business.
     Using a dataclass provides type hints and a structured way to store data.
     """
-    name: str | None = None
-    address: str | None = None
-    website: str | None = None
-    phone_number: str | None = None
-    query: str | None = None
-    latitude: float | None = None
-    longitude: float | None = None
+    name: str
+    address: str
+    phone_number: str 
+    website: str
+    email: str
+    query: str 
+    latitude: float
+    longitude: float
 
     def __hash__(self):
         """
@@ -61,7 +62,7 @@ class BusinessList:
             (asdict(b) for b in self.business_list), sep="_"
         )
 
-    def save_data(self, filename_base: str):
+    def save_data(self, filename_base):
         """
         Saves the collected business data to both Excel and CSV files.
         Files are stored in a dated folder for better organization.
