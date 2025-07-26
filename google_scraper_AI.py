@@ -1,5 +1,5 @@
 import asyncio
-from datetime import time
+import time
 import re # Import regex module
 from business import Business, BusinessList
 from ui_selectors import UI_SELECTORS
@@ -56,12 +56,13 @@ class GoogleMapsScraper:
                     self._process_query(browser, query, total_results, semaphore)
                     for query in search_queries
                 ]
-                #print(f"Query time: {(time.time() - query_time)//60} minutes and {(time.time()-query_time)%60} seconds.")
 
                 # Run all scraping tasks in parallel and wait for them to complete.
                 await asyncio.gather(*query_tasks)
-
-                email_tasks = [self._extract_email_from_website(business.website.strip(), semaphore) for business in self.business_list.business_list]
+                # operation_time = time.time() - query_time
+                # print(f"Query time: {operation_time//60} minutes and {(operation_time%60)*60/100 } seconds.")
+                # print(operation_time)
+                email_tasks = [self._extract_email_from_website(business, semaphore) for business in self.business_list.business_list]
 
                 await asyncio.gather(*email_tasks)
                 await browser.close()
@@ -152,9 +153,7 @@ class GoogleMapsScraper:
                     
                 except Exception as e:
                     self.update_status(f"  Error scraping listing {i+1} for '{query}': {e}")
-                    # Optionally, navigate back to the listings page if an error occurs to continue scraping
-                    # await page.go_back() 
-                    continue # Move to the next listing
+                    continue
 
     async def _scroll_and_collect_listings(self, page: Page, query: str, total_results: int) -> list[Locator]:
         """Scrolls down the search results pane to load all businesses."""
@@ -191,12 +190,14 @@ class GoogleMapsScraper:
         # Return only up to total_results listings
         return (await listings_locator.all())[:total_results]
 
-    async def _extract_email_from_website(self, website_url, semaphore):
+    async def _extract_email_from_website(self, business, semaphore):
         """
         Navigates to the given website URL and attempts to extract an email address.
         It tries to find common email patterns in the page content.
         """
+        
         async with semaphore:
+            website_url = business.website.strip()
             if not website_url:
                 return None # Skip if website URL is invalid
             
@@ -230,9 +231,6 @@ class GoogleMapsScraper:
                             await asyncio.sleep(1)
                             contact_page_content = await website_page.content()
                             email_list = email_list.append(re.findall(email_regex, contact_page_content))
-                            # if match:
-                            #     email = match.group()
-                            #     self.update_status(f"  Found email on contact page ({contact_url}): {email}")
                         except Exception:
                             # Ignore errors for non-existent contact pages
                             continue
@@ -242,7 +240,7 @@ class GoogleMapsScraper:
             finally:
                 # Ensure the website page is closed
                 await website_page.close()
-            return email_list
+            business.email_list = email_list
 
     async def _extract_business_data(self, page: Page, query:str) -> Business:
         """Extracts the details of a single business from the page."""
