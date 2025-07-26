@@ -1,4 +1,5 @@
 import asyncio
+from datetime import time
 import re # Import regex module
 from business import Business, BusinessList
 from ui_selectors import UI_SELECTORS
@@ -49,13 +50,20 @@ class GoogleMapsScraper:
 
                 semaphore = asyncio.Semaphore(os.cpu_count()-2)
                 # Create a list of concurrent tasks, one for each query.
-                tasks = [
+                
+                query_time = time.time()
+                query_tasks = [
                     self._process_query(browser, query, total_results, semaphore)
                     for query in search_queries
                 ]
-                # Run all scraping tasks in parallel and wait for them to complete.
-                await asyncio.gather(*tasks)
+                #print(f"Query time: {(time.time() - query_time)//60} minutes and {(time.time()-query_time)%60} seconds.")
 
+                # Run all scraping tasks in parallel and wait for them to complete.
+                await asyncio.gather(*query_tasks)
+
+                email_tasks = [self._extract_email_from_website(business.website.strip(), semaphore) for business in self.business_list.business_list]
+
+                await asyncio.gather(*email_tasks)
                 await browser.close()
                 self.update_status("Browser instance closed.")
 
@@ -183,58 +191,58 @@ class GoogleMapsScraper:
         # Return only up to total_results listings
         return (await listings_locator.all())[:total_results]
 
-    async def _extract_email_from_website(self, website_url):
+    async def _extract_email_from_website(self, website_url, semaphore):
         """
         Navigates to the given website URL and attempts to extract an email address.
         It tries to find common email patterns in the page content.
         """
-        if not website_url or not website_url.startswith("http"):
-            return None # Skip if website URL is invalid
-
-        email = None
-        # Regex for common email patterns
-        email_regex = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-        email_list = []
-
-        try:
-            # Create a new page context to navigate to the website
-            # Using a new page avoids interfering with the Google Maps page
-            website_page = await self.browser.new_page()
+        async with semaphore:
+            if not website_url:
+                return None # Skip if website URL is invalid
             
-            # Try to navigate to the website
-            await website_page.goto(website_url, timeout=10000, wait_until='domcontentloaded') # Shorter timeout for external site
-            await asyncio.sleep(2) # Give some time for content to load
-            
-            # Get text content of the entire page
-            page_content = await website_page.content()
+            # Regex for common email patterns
+            email_regex = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+            email_list = []
 
-            # Search for email in the main content
-            email_list = re.findall(email_regex, page_content)
-            if email_list:
-                self.update_status(f"Found emails on main site: {email_list}")
-            
-            # If no email found on main page, try common contact pages
-            else:
-                contact_page_urls = [f"{website_url}/iletisim"]
-                for contact_url in contact_page_urls:
-                    try:
-                        await website_page.goto(contact_url, timeout=5000, wait_until='domcontentloaded')
-                        await asyncio.sleep(1)
-                        contact_page_content = await website_page.content()
-                        email_list = email_list.append(re.findall(email_regex, contact_page_content))
-                        # if match:
-                        #     email = match.group()
-                        #     self.update_status(f"  Found email on contact page ({contact_url}): {email}")
-                    except Exception:
-                        # Ignore errors for non-existent contact pages
-                        continue
+            try:
+                # Create a new page context to navigate to the website
+                # Using a new page avoids interfering with the Google Maps page
+                website_page = await self.browser.new_page()
+                
+                # Try to navigate to the website
+                await website_page.goto(website_url, timeout=10000, wait_until='domcontentloaded') # Shorter timeout for external site
+                await asyncio.sleep(2) # Give some time for content to load
+                
+                # Get text content of the entire page
+                page_content = await website_page.content()
 
-        except Exception as e:
-            self.update_status(f"  Error extracting email from {website_url}: {e}")
-        finally:
-            # Ensure the website page is closed
-            await website_page.close()
-        return email_list
+                # Search for email in the main content
+                email_list = re.findall(email_regex, page_content)
+                if email_list:
+                    self.update_status(f"Found emails on main site: {email_list}")
+                
+                # If no email found on main page, try common contact pages
+                else:
+                    contact_page_urls = [f"{website_url}/iletisim"]
+                    for contact_url in contact_page_urls:
+                        try:
+                            await website_page.goto(contact_url, timeout=5000, wait_until='domcontentloaded')
+                            await asyncio.sleep(1)
+                            contact_page_content = await website_page.content()
+                            email_list = email_list.append(re.findall(email_regex, contact_page_content))
+                            # if match:
+                            #     email = match.group()
+                            #     self.update_status(f"  Found email on contact page ({contact_url}): {email}")
+                        except Exception:
+                            # Ignore errors for non-existent contact pages
+                            continue
+
+            except Exception as e:
+                self.update_status(f"  Error extracting email from {website_url}: {e}")
+            finally:
+                # Ensure the website page is closed
+                await website_page.close()
+            return email_list
 
     async def _extract_business_data(self, page: Page, query:str) -> Business:
         """Extracts the details of a single business from the page."""
@@ -273,12 +281,4 @@ class GoogleMapsScraper:
             longitude=lon,
             email_list=None # Pass the extracted email
         )
-
-    async def _email_extraction_for_business(self):
-        for business in self.business_list:
-            if business.website:
-                    if not business.website.strip().startswith("http"):
-                        full_website_url = f"https://{website.strip()}"
-                    else:
-                        full_website_url = business.website.strip()
-                    business.email_list = _extract_email_from_website(self, full_website_url)
+    
