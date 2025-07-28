@@ -28,7 +28,7 @@ class GoogleMapsScraper:
         self.update_status = gui_update_callback
         self.pause_event = pause_event
         self.business_list = BusinessList()
-        # A lock is crucial to prevent race conditions when tasks run in parallel.
+        # A lock is crucial to prevent race conditions when tasks run in parallel
         self.lock = asyncio.Lock()
 
     async def run(self, search_queries, total_results, headless_mode):
@@ -48,7 +48,7 @@ class GoogleMapsScraper:
                 self.update_status("Browser instance started.")
                 
                 semaphore = asyncio.Semaphore(os.cpu_count()-2)
-                # Create a list of concurrent tasks, one for each query.
+                # Create a list of concurrent tasks, one for each query
                 
                 query_tasks = [
                     self._process_query(browser, query, total_results, semaphore)
@@ -64,7 +64,7 @@ class GoogleMapsScraper:
                 await browser.close()
                 self.update_status("Browser instance closed.")
 
-                # Save the accumulated data after all parallel tasks are finished.
+                # Save the accumulated data after all parallel tasks are finished
                 if self.business_list.business_list:
                     filename_base = search_queries[0].replace(' ', '_')
                     if len(search_queries) > 1:
@@ -82,7 +82,7 @@ class GoogleMapsScraper:
 
         except Exception as e:
             self.update_status(f"A critical error occurred: {e}")
-            print(f"Error: {e}") # Also print to console for debugging
+            print(f"Error: {e}")
 
     async def _process_query(self, browser, query, total_results, semaphore):
         """
@@ -117,7 +117,8 @@ class GoogleMapsScraper:
         self.pause_event.wait() # Check if pause event is set
         search_box = page.locator(UI_SELECTORS["search_input"])
         await search_box.fill(query)
-        await asyncio.sleep(random.randrange(2,3)) # Brief pause for stability
+        await asyncio.sleep(random.randrange(2,3)) #Random pause to simulate user behaviour
+        
         await page.keyboard.press("Enter")
         self.update_status(f"Searching for '{query}'...")
         await page.wait_for_url("**/search/**", timeout=30000) # Wait for search results to load
@@ -126,7 +127,7 @@ class GoogleMapsScraper:
             await accept_button.click()
             await asyncio.sleep(2)
         
-        await asyncio.sleep(3) # Wait for page content to settle
+        await asyncio.sleep(3) # Wait for page content to load
 
     async def _scrape_results(self, page, query, total_results):
         """Manages the scraping of search results, including scrolling and data extraction."""
@@ -203,17 +204,17 @@ class GoogleMapsScraper:
             if not website_url:
                 return None # Skip if website URL is invalid
             
-            # Regex for common email patterns
+            # Email regex, inefficient but works
             email_regex = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
             email_list = []
 
             try:
                 # Create a new page context to navigate to the website
-                # Using a new page avoids interfering with the Google Maps page
                 website_page = await context.new_page()
-                
+            
                 # Try to navigate to the website
-                await website_page.goto(website_url, timeout=0, wait_until="domcontentloaded") # Shorter timeout for external site
+                await website_page.goto(website_url, timeout=0, wait_until="domcontentloaded")
+                
                 accept_button = website_page.get_by_role("button", name="Accept all", exact=False)
                 if await accept_button.is_visible():
                     await accept_button.click()
