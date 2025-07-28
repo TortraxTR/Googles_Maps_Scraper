@@ -98,7 +98,7 @@ class GoogleMapsScraper:
                 await self._perform_search(page, query)
                 await self._scrape_results(page, query, total_results)
             except Exception as e:
-                self.update_status(f"ERROR: Could not process query '{query}': {e}")
+                self.update_status(f"---ERROR: Could not process query '{query}': {e}")
                 print(f"Error processing query '{query}': {e}")
             finally:
                 await page.close()
@@ -156,7 +156,7 @@ class GoogleMapsScraper:
                             self.update_status(f"  ({i+1}/{len(listings)}) Scraped for '{query}'.")
                             
                 except Exception as e:
-                    self.update_status(f"  Error scraping listing {i+1} for '{query}': {e}")
+                    self.update_status(f"---Error scraping listing {i+1} for '{query}': {e}")
                     continue
 
     async def _scroll_and_collect_listings(self, page, query, total_results):
@@ -242,18 +242,26 @@ class GoogleMapsScraper:
                         except Exception:
                             # Ignore errors for non-existent contact pages
                             continue
-
+                
             except Exception as e:
-                if ("ERR_NAME_NOT_RESOLVED" in e.message):
-                    self.update_status(f"  Error accessing website for {website_url}: Link is not accessible.")
-                elif ("ERR_CONNECTION_RESET" in e.message):
-                    self.update_status(f"  Error accessing website for {website_url}: Connection reset.")
-                elif ("ERR_TIMED_OUT" in e.message):
-                    self.update_status(f"  Error accessing website for {website_url}: Connection timed out.")
+                if hasattr(e, "message"):
+                    if ("ERR_NAME_NOT_RESOLVED" in e.message):
+                        self.update_status(f"---Error accessing website for {website_url}: Link is not accessible.")
+                    elif ("ERR_CONNECTION_RESET" in e.message):
+                        self.update_status(f"---Error accessing website for {website_url}: Connection reset.")
+                    elif ("ERR_TIMED_OUT" in e.message):
+                        self.update_status(f"---Error accessing website for {website_url}: Connection timed out.")
+                    elif("ERR_CONNECTION_CLOSED" in e.message):
+                        self.update_status(f"---Error accessing website for {website_url}: Connection closed.")
+                    elif(("ERR_CERT_COMMON_NAME_INVALID" in e.message) or ("ERR_CERT_DATE_INVALID" in e.message)):
+                        self.update_status(f"---Error accessing website for {website_url}: Website certification is invalid.")
                 else:
-                    self.update_status(f"  Uncaught error while extracting email from {website_url}: {e}")
+                    self.update_status(f"---Uncaught error while extracting email from {website_url}: {e}")
             
             finally:
+                if(business.email_list):
+                    self.update_status(f"Found {len(business.email_list) if len(business.email_list) else 0} emails on {website_url}.")
+                
                 await website_page.close()
 
 
@@ -281,6 +289,6 @@ class GoogleMapsScraper:
             query=query,
             latitude=lat,
             longitude=lon,
-            email_list=None # Pass the extracted email
+            email_list=[]
         )
     
