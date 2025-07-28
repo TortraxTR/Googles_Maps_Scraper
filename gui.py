@@ -1,8 +1,9 @@
 import asyncio
+import os
 import threading
 import tkinter as tk
-from google_scraper_AI import GoogleMapsScraper
-from tkinter import messagebox, scrolledtext
+from google_scraper import GoogleMapsScraper
+from tkinter import messagebox, scrolledtext, ttk
 from functools import partial 
 
 class ScraperGUI:
@@ -22,6 +23,7 @@ class ScraperGUI:
         self.pause_event = threading.Event()
         self.pause_event.set()  # Set to True initially (not paused)
         self.headless_var = tk.BooleanVar(value=True)
+        self.progress_bar_list = []
         self._setup_widgets()
 
     def _setup_widgets(self):
@@ -45,9 +47,12 @@ class ScraperGUI:
         self.total_entry.grid(row=2, column=1, sticky="ew", pady=2)
         #self.total_entry.insert(0, "100")
 
-        # Buttons
+        self.headless_check = tk.Checkbutton(main_frame, text="Run in Headless Mode (faster, no visible browser)", variable=self.headless_var)
+        self.headless_check.grid(row=3, column=0, sticky="w", pady=5)
+
+         # Buttons
         button_frame = tk.Frame(main_frame)
-        button_frame.grid(row=3, column=0, columnspan=3, pady=10)
+        button_frame.grid(row=4, column=0, columnspan=2, pady=10)
 
         self.input_file_button = tk.Button(button_frame, text="Read Input File", command=partial(self.start_scraping, True))
         self.input_file_button.pack(side=tk.LEFT, padx=5)
@@ -58,16 +63,23 @@ class ScraperGUI:
         self.pause_button = tk.Button(button_frame, text="Pause", command=self.toggle_pause, state=tk.DISABLED)
         self.pause_button.pack(side=tk.LEFT, padx=5)
 
-        self.headless_check = tk.Checkbutton(main_frame, text="Run in Headless Mode (faster, no visible browser)", variable=self.headless_var)
-        self.headless_check.grid(row=4, column=0, columnspan=3, sticky="w", pady=5)
+        tk.Label(main_frame, text="Progress bars:").grid(row=5, column=0, sticky="w", pady=2)
+        
+        progress_bar_frame = tk.Frame(main_frame)
+        progress_bar_frame.grid(row=6, column=0, columnspan=2, pady=10)
+
+        for i in range(os.cpu_count()-2):
+            progress_bar = ttk.Progressbar(progress_bar_frame, orient="vertical")
+            progress_bar.pack(side=tk.LEFT, padx=5)
+            self.progress_bar_list.append(progress_bar)
 
         # Status area
-        tk.Label(main_frame, text="Log:").grid(row=5, column=0, sticky="w", pady=2)
+        tk.Label(main_frame, text="Log:").grid(row=7, column=0, sticky="w", pady=2)
         self.status_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, height=15, state=tk.DISABLED)
-        self.status_text.grid(row=6, column=0, columnspan=2, sticky="nsew")
+        self.status_text.grid(row=8, column=0, columnspan=2, sticky="nsew")
 
         main_frame.grid_columnconfigure(1, weight=1)
-        main_frame.grid_rowconfigure(6, weight=1)
+        main_frame.grid_rowconfigure(8, weight=1)
 
     def update_status(self, message: str):
         """
@@ -82,6 +94,8 @@ class ScraperGUI:
         if self.master.winfo_exists():
             self.master.after(0, _update)
 
+    #def progress_bars(self, bar_value):
+    
     def start_scraping(self, readfile: bool):
         """Validates inputs and starts the scraping process in a new thread."""
         search_queries = []

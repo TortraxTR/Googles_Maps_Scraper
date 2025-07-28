@@ -1,7 +1,10 @@
+from playwright.async_api import async_playwright, Page, Locator
 import asyncio
+import time
+import re
+import os
 from business import Business, BusinessList
 from ui_selectors import UI_SELECTORS
-from playwright.async_api import async_playwright, Page, Locator
 
 def extract_coordinates_from_url(url):
     """
@@ -25,78 +28,116 @@ class GoogleMapsScraper:
         self.update_status = gui_update_callback
         self.pause_event = pause_event
         self.business_list = BusinessList()
+        # A lock is crucial to prevent race conditions when tasks run in parallel.
         self.lock = asyncio.Lock()
+        self.browser = None
 
     async def run(self, search_queries, total_results, headless_mode):
         """
-        The main entry point for the scraper. It sets up Playwright and
-        iterates through the search queries.
+        The main entry point for the scraper. It launches a browser and then runs
+        all search queries in parallel tasks.
         """
-
         if not search_queries:
             self.update_status("No valid search queries. Please check your inputs.")
             return
 
         try:
             async with async_playwright() as p:
+                # Launch browser once for all concurrent tasks
                 browser = await p.chromium.launch(headless=headless_mode)
-                page = await browser.new_page(locale="en-US")
-                await page.goto("https://www.google.com/maps", timeout=60000)
+                self.browser = browser
+                self.update_status("Browser instance started.")
 
-                for i, query in enumerate(search_queries):
-                    
-                    self.pause_event.wait()  # Checks if paused before starting a new search.
-                    self.update_status(f"--- ({i + 1}/{len(search_queries)}) Searching for: {query} ---")
-                    await self._perform_search(page, query)
-                    await self._scrape_results(page, query, total_results)
+                semaphore = asyncio.Semaphore(os.cpu_count()-2)
+                # Create a list of concurrent tasks, one for each query.
+                
+                query_time = time.time()
+                query_tasks = [
+                    self._process_query(browser, query, total_results, semaphore)
+                    for query in search_queries
+                ]
 
+                await asyncio.gather(*query_tasks)
+                # operation_time = time.time() - query_time
+                # print(f"Query time: {operation_time//60} minutes and {(operation_time%60)*60/100 } seconds.")
+                # print(operation_time)
+                email_tasks = [self._extract_email_from_website(business, semaphore) for business in self.business_list.business_list]
+
+                await asyncio.gather(*email_tasks)
                 await browser.close()
-                filename_base = f"{query.replace(' ', '_')}"
-                saved_file = self.business_list.save_data(filename_base)
-        
-                if saved_file:
-                    self.update_status(f"Saved data to '{saved_file}.xlsx.")
+                self.update_status("Browser instance closed.")
 
-                self.business_list = BusinessList()
-                self.update_status("Scraping finished successfully!")
+                # Save the accumulated data after all parallel tasks are finished.
+                if self.business_list.business_list:
+                    filename_base = search_queries[0].replace(' ', '_')
+                    if len(search_queries) > 1:
+                        filename_base += f"_and_{len(search_queries) - 1}_others"
+                    
+                    saved_file = self.business_list.save_data(filename_base)
+                    if saved_file:
+                        self.update_status(f"All collected data saved to '{saved_file}'.")
+                else:
+                    self.update_status("Scraping session finished, but no data was collected.")
+
+                self.business_list = BusinessList()  # Reset for a potential next run
+                self.update_status("Scraping session finished successfully!")
 
         except Exception as e:
-            self.update_status(f"An unexpected error occurred: {e}")
+            self.update_status(f"A critical error occurred: {e}")
             print(f"Error: {e}") # Also print to console for debugging
 
-    async def run_field(self, categories, locations, total_results):
+    async def _process_query(self, browser, query, total_results, semaphore):
         """
-        The main entry point for the scraper. It sets up Playwright and
-        iterates through the search queries.
+        Handles the entire scraping process for a single query in its own page (tab).
+        This method is designed to be run as a concurrent task.
         """
-        search_queries = [f"{cat} {loc}" for cat in categories for loc in locations]
-        await self.run(self, search_queries, total_results)
-    
+        async with semaphore:
+            self.pause_event.wait() # Check if pause event is set
+            page = await browser.new_page(locale="en-US")
+            self.update_status(f"INFO: Page created for query: '{query}'")
+            try:
+                await page.goto("https://www.google.com/maps", timeout=60000)
+                await self._perform_search(page, query)
+                await self._scrape_results(page, query, total_results)
+            except Exception as e:
+                self.update_status(f"ERROR: Could not process query '{query}': {e}")
+                print(f"Error processing query '{query}': {e}")
+            finally:
+                await page.close()
+                self.update_status(f"INFO: Page for query '{query}' closed.")
+
+    async def _add_business_safely(self, business):
+        """
+        A thread-safe method to add a business to the shared list. It uses a lock
+        to ensure that only one task can modify the list at a time.
+        """
+        async with self.lock:
+            self.business_list.add_business(business)
+
     async def _perform_search(self, page, query):
         """Handles the process of typing a search query and executing it."""
-        self.pause_event.wait()
+        self.pause_event.wait() # Check if pause event is set
         search_box = page.locator(UI_SELECTORS["search_input"])
         await search_box.fill(query)
         await asyncio.sleep(1) # Brief pause for stability
         await page.keyboard.press("Enter")
         self.update_status(f"Searching for '{query}'...")
         await page.wait_for_url("**/search/**", timeout=30000) # Wait for search results to load
-        await asyncio.sleep(3)
+        await asyncio.sleep(3) # Wait for page content to settle
 
     async def _scrape_results(self, page, query, total_results):
         """Manages the scraping of search results, including scrolling and data extraction."""
-        self.update_status("Scrolling to collect all business listings...")
-        listings = await self._scroll_and_collect_listings(page, total_results)
+        self.update_status(f"Scrolling to collect listings for '{query}'...")
+        listings = await self._scroll_and_collect_listings(page, query, total_results)
 
         if not listings:
-            self.update_status("No listings found. Trying to scrape a single result page.")
-            # If no list is found, it might be a direct page for one business.
+            self.update_status(f"No list found for '{query}'. Checking for a single result page.")
             business = await self._extract_business_data(page, query)
             if business and business.name:
-                self.business_list.add_business(business)
-                self.update_status(f"Scraped single business: {business.name}")
+                await self._add_business_safely(business)
+                self.update_status(f"Scraped single business for '{query}': {business.name}")
         else:
-            self.update_status(f"Found {len(listings)} listings. Starting data extraction...")
+            self.update_status(f"Found {len(listings)} listings for '{query}'. Extracting data...")
             for i, listing_locator in enumerate(listings):
                 self.pause_event.wait() # Check for pause before each item
                 try:
@@ -106,14 +147,14 @@ class GoogleMapsScraper:
                     
                     business = await self._extract_business_data(page, query)
                     if business and business.name:
-                        self.business_list.add_business(business)
-                        self.update_status(f"  ({i+1}/{len(listings)}) Scraped: {business.name}")
-
+                        await self._add_business_safely(business)
+                        #self.update_status(f"  ({i+1}/{len(listings)}) Scraped for '{query}': {business.name}")
+                    
                 except Exception as e:
-                    self.update_status(f"  Error scraping listing {i+1}: {e}")
-                    continue # Move to the next listing
+                    self.update_status(f"  Error scraping listing {i+1} for '{query}': {e}")
+                    continue
 
-    async def _scroll_and_collect_listings(self, page, total_results) -> list[Locator]:
+    async def _scroll_and_collect_listings(self, page, query, total_results):
         """Scrolls down the search results pane to load all businesses."""
         listings_locator = page.locator(UI_SELECTORS["search_results_list"])
         
@@ -121,36 +162,89 @@ class GoogleMapsScraper:
         try:
             await listings_locator.first.wait_for(timeout=10000)
         except Exception:
-            self.update_status("Could not find initial business listings.")
+            self.update_status(f"Could not find initial business listings for '{query}'.")
             return []
 
         previously_counted = 0
         while True:
-            self.pause_event.wait()
+            self.pause_event.wait() # Check if pause event is set
             current_count = await listings_locator.count()
 
             if current_count >= total_results:
-                self.update_status(f"Reached target of {total_results} listings.")
+                self.update_status(f"Reached target of {total_results} listings for '{query}'.")
                 break
             
             if current_count == previously_counted and current_count > 0:
-                self.update_status(f"Scrolled to the end. Found {current_count} listings.")
+                self.update_status(f"Scrolled to the end for '{query}'. Found {current_count} listings.")
                 break
 
             previously_counted = current_count
-            self.update_status(f"Currently have {previously_counted} listings, scrolling for more...")
+            self.update_status(f"'{query}': {previously_counted} listings found, scrolling...")
             
             # Scroll the pane, not the whole page
             await listings_locator.last.hover()
             await page.mouse.wheel(0, 10000)
             await asyncio.sleep(3) # Wait for new results to load
 
-        return await listings_locator.all()
+        # Return only up to total_results listings
+        return (await listings_locator.all())[:total_results]
 
-    async def _extract_business_data(self, page, query) -> Business:
+    async def _extract_email_from_website(self, business, semaphore):
+        """
+        Navigates to the given website URL and attempts to extract an email address.
+        It tries to find common email patterns in the page content.
+        """
+        
+        async with semaphore:
+            website_url = business.website.strip()
+            if not website_url:
+                return None # Skip if website URL is invalid
+            
+            # Regex for common email patterns
+            email_regex = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+            email_list = []
+
+            try:
+                # Create a new page context to navigate to the website
+                # Using a new page avoids interfering with the Google Maps page
+                website_page = await self.browser.new_page()
+                
+                # Try to navigate to the website
+                await website_page.goto(website_url, timeout=10000, wait_until='domcontentloaded') # Shorter timeout for external site
+                await asyncio.sleep(2) # Give some time for content to load
+                
+                # Get text content of the entire page
+                page_content = await website_page.content()
+
+                # Search for email in the main content
+                email_list = re.findall(email_regex, page_content)
+                if email_list:
+                    self.update_status(f"Found emails on main site: {email_list}")
+                
+                # If no email found on main page, try common contact pages
+                else:
+                    contact_page_urls = [f"{website_url}/iletisim"]
+                    for contact_url in contact_page_urls:
+                        try:
+                            await website_page.goto(contact_url, timeout=5000, wait_until='domcontentloaded')
+                            await asyncio.sleep(1)
+                            contact_page_content = await website_page.content()
+                            email_list = email_list.append(re.findall(email_regex, contact_page_content))
+                        except Exception:
+                            # Ignore errors for non-existent contact pages
+                            continue
+
+            except Exception as e:
+                self.update_status(f"  Error extracting email from {website_url}: {e}")
+            finally:
+                # Ensure the website page is closed
+                await website_page.close()
+            business.email_list = email_list
+
+    async def _extract_business_data(self, page, query):
         """Extracts the details of a single business from the page."""
         
-        async def get_text(selector):
+        async def get_text(selector: str) -> str:
             """Helper to safely get text from a locator."""
             try:
                 return await page.locator(selector).first.inner_text(timeout=2000)
@@ -163,12 +257,25 @@ class GoogleMapsScraper:
         phone = await get_text(UI_SELECTORS["phone_number"])
         lat, lon = extract_coordinates_from_url(page.url)
 
+        # Attempt to extract email from the business's website
+        # extracted_emails = None
+        # if website: # Only try to extract email if a website exists
+        #     # Ensure the website URL has a proper schema, default to https
+        #     if not website.strip().startswith("http"):
+        #         full_website_url = f"https://{website.strip()}"
+        #     else:
+        #         full_website_url = website.strip()
+            
+        #     extracted_emails = await self._extract_email_from_website(self, full_website_url)
+
         return Business(
             name=name.strip(),
             address=address.strip(),
-            website=f"https://www.{website.strip()}" if website else "",
+            website=f"https://www.{website.strip()}" if website and not website.strip().startswith("http") else website.strip(),
             phone_number=phone.strip(),
             query=query,
             latitude=lat,
-            longitude=lon
+            longitude=lon,
+            email_list=None # Pass the extracted email
         )
+    
