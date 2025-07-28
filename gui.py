@@ -23,7 +23,6 @@ class ScraperGUI:
         self.pause_event = threading.Event()
         self.pause_event.set()  # Set to True initially (not paused)
         self.headless_var = tk.BooleanVar(value=True)
-        self.progress_bar_list = []
         self._setup_widgets()
 
     def _setup_widgets(self):
@@ -45,7 +44,6 @@ class ScraperGUI:
         tk.Label(main_frame, text="Max Results per Search:").grid(row=2, column=0, sticky="w", pady=2)
         self.total_entry = tk.Entry(main_frame)
         self.total_entry.grid(row=2, column=1, sticky="ew", pady=2)
-        #self.total_entry.insert(0, "100")
 
         self.headless_check = tk.Checkbutton(main_frame, text="Run in Headless Mode (faster, no visible browser)", variable=self.headless_var)
         self.headless_check.grid(row=3, column=0, sticky="w", pady=5)
@@ -63,16 +61,6 @@ class ScraperGUI:
         self.pause_button = tk.Button(button_frame, text="Pause", command=self.toggle_pause, state=tk.DISABLED)
         self.pause_button.pack(side=tk.LEFT, padx=5)
 
-        tk.Label(main_frame, text="Progress bars:").grid(row=5, column=0, sticky="w", pady=2)
-        
-        progress_bar_frame = tk.Frame(main_frame)
-        progress_bar_frame.grid(row=6, column=0, columnspan=2, pady=10)
-
-        for i in range(os.cpu_count()-2):
-            progress_bar = ttk.Progressbar(progress_bar_frame, orient="vertical")
-            progress_bar.pack(side=tk.LEFT, padx=5)
-            self.progress_bar_list.append(progress_bar)
-
         # Status area
         tk.Label(main_frame, text="Log:").grid(row=7, column=0, sticky="w", pady=2)
         self.status_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, height=15, state=tk.DISABLED)
@@ -88,7 +76,7 @@ class ScraperGUI:
         def _update():
             self.status_text.config(state=tk.NORMAL)
             self.status_text.insert(tk.END, f"{message}\n")
-            self.status_text.see(tk.END)  # Auto-scroll to the bottom
+            self.status_text.see(tk.END)
             self.status_text.config(state=tk.DISABLED)
         
         if self.master.winfo_exists():
@@ -188,5 +176,5 @@ class ScraperGUI:
                 # For now, we just destroy the window, and the daemon thread will exit.
                 self.master.destroy()
             else:
-                return # Do not close
+                return
         self.master.destroy()
