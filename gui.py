@@ -1,5 +1,4 @@
 import asyncio
-import os
 import threading
 import tkinter as tk
 from google_scraper import GoogleMapsScraper
