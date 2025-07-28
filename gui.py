@@ -93,8 +93,6 @@ class ScraperGUI:
         
         if self.master.winfo_exists():
             self.master.after(0, _update)
-
-    #def progress_bars(self, bar_value):
     
     def start_scraping(self, readfile: bool):
         """Validates inputs and starts the scraping process in a new thread."""

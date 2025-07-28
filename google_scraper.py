@@ -219,8 +219,8 @@ class GoogleMapsScraper:
                 accept_button = website_page.get_by_role("button", name="Accept all", exact=False)
                 if await accept_button.is_visible():
                     await accept_button.click()
-                    await asyncio.sleep(2)
-                await asyncio.sleep(2) # Give some time for content to load
+                    await asyncio.sleep(random.randrange(2,4))
+                await asyncio.sleep(random.randrange(2,4)) # Give some time for content to load
                 
                 # Get text content of the entire page
                 page_content = await website_page.content()
