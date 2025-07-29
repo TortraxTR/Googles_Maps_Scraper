@@ -44,16 +44,13 @@ class GoogleMapsScraper:
             async with async_playwright() as p:
                 # Launch browser once for all concurrent tasks
                 browser = await p.chromium.launch(headless=headless_mode)
-                context = await browser.new_context()
+                context = await browser.new_context(locale="en-GB")
                 self.update_status("Browser instance started.")
                 
-                semaphore = asyncio.Semaphore(os.cpu_count()-2 if os.cpu_count-2>1 else 1)
+                semaphore = asyncio.Semaphore(os.cpu_count()-2 if (os.cpu_count()-2)>1 else 1)
                 # Create a list of concurrent tasks, one for each query
                 
-                query_tasks = [
-                    self._process_query(browser, query, total_results, semaphore)
-                    for query in search_queries
-                ]
+                query_tasks = [self._process_query(browser, query, total_results, semaphore) for query in search_queries]
 
                 await asyncio.gather(*query_tasks)
                 
@@ -283,7 +280,7 @@ class GoogleMapsScraper:
         reviews = await get_text(UI_SELECTORS["reviews"]) 
 
         if reviews:
-            reviews = int(reviews.replace(".", "").replace(" yorum", ""))
+            reviews = int(reviews.replace(".", "").replace(" yorum", "").replace(" reviews", ""))
         else:
             reviews = 0
         
