@@ -213,7 +213,7 @@ class GoogleMapsScraper:
                 website_page = await context.new_page()
             
                 # Try to navigate to the website
-                await website_page.goto(website_url, timeout=0, wait_until="domcontentloaded")
+                await website_page.goto(website_url, timeout=15000, wait_until="domcontentloaded")
                 
                 accept_button = website_page.get_by_role("button", name="Accept all", exact=False)
                 if await accept_button.is_visible():
@@ -235,7 +235,7 @@ class GoogleMapsScraper:
                     contact_page_urls = [f"{website_url}/iletisim", f"{website_url}/tr/iletisim", f"{website_url}/contact", f"{website_url}/tr/contact"]
                     for contact_url in contact_page_urls:
                         try:
-                            await website_page.goto(contact_url, timeout=0, wait_until="domcontentloaded")
+                            await website_page.goto(contact_url, timeout=15000, wait_until="domcontentloaded")
                             await asyncio.sleep(random.randrange(1,2))
                             contact_page_content = await website_page.content()
                             business.email_list = business.email_list.append(re.findall(email_regex, contact_page_content))
@@ -271,18 +271,26 @@ class GoogleMapsScraper:
         async def get_text(selector):
             """Helper to safely get text from a locator."""
             try:
-                return await page.locator(selector).first.inner_text(timeout=2000)
-            except Exception:
+                return await page.locator(selector).first.inner_text(timeout=5000)
+            except Exception as e:
                 return ""
 
         name = await get_text(UI_SELECTORS["business_name"])
         address = await get_text(UI_SELECTORS["address"])
         website = await get_text(UI_SELECTORS["website"])
         phone = await get_text(UI_SELECTORS["phone_number"])
+        reviews = await get_text(UI_SELECTORS["reviews"]) 
+
+        if reviews:
+            reviews = int(reviews.replace(".", "").replace(" yorum", ""))
+        else:
+            reviews = 0
+        
         lat, lon = extract_coordinates_from_url(page.url)
 
         return Business(
             name=name.strip(),
+            reviews=reviews,
             address=address.strip(),
             website=f"https://www.{website.strip()}" if website and not website.strip().startswith("http") else website.strip(),
             phone_number=phone.strip(),

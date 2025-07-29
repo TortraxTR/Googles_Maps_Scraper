@@ -5,4 +5,5 @@ UI_SELECTORS = {
     "address": '//button[@data-item-id="address"]//div[contains(@class, "fontBodyMedium")]',
     "website": '//a[@data-item-id="authority"]//div[contains(@class, "fontBodyMedium")]',
     "phone_number": '//button[contains(@data-item-id, "phone:tel:")]//div[contains(@class, "fontBodyMedium")]',
+    "reviews": '//button[contains(@class, "fontTitleSmall")]//span'
 }
