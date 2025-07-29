@@ -200,6 +200,7 @@ class GoogleMapsScraper:
         """
         
         async with semaphore:
+            self.pause_event.wait()
             website_url = business.website.strip()
             if not website_url:
                 return None # Skip if website URL is invalid

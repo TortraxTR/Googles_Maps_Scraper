@@ -161,9 +161,17 @@ class ScraperGUI:
     def _set_gui_state_running(self, is_running: bool):
         """Enables or disables GUI elements based on the scraper's state."""
         if is_running:
+            self.locations_entry.config(state=tk.DISABLED)
+            self.categories_entry.config(state=tk.DISABLED)
+            self.total_entry.config(state=tk.DISABLED)
+            self.input_file_button.config(state=tk.DISABLED)
             self.start_button.config(state=tk.DISABLED)
             self.pause_button.config(state=tk.NORMAL)
         else:
+            self.locations_entry.config(state=tk.NORMAL)
+            self.categories_entry.config(state=tk.NORMAL)
+            self.total_entry.config(state=tk.NORMAL)
+            self.input_file_button.config(state=tk.NORMAL)
             self.start_button.config(state=tk.NORMAL)
             self.pause_button.config(state=tk.DISABLED)
 
