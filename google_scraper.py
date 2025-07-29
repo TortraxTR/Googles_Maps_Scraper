@@ -47,7 +47,7 @@ class GoogleMapsScraper:
                 context = await browser.new_context()
                 self.update_status("Browser instance started.")
                 
-                semaphore = asyncio.Semaphore(os.cpu_count()-2)
+                semaphore = asyncio.Semaphore(os.cpu_count()-2 if os.cpu_count-2>1 else 1)
                 # Create a list of concurrent tasks, one for each query
                 
                 query_tasks = [

@@ -2,7 +2,7 @@ import asyncio
 import threading
 import tkinter as tk
 from google_scraper import GoogleMapsScraper
-from tkinter import messagebox, scrolledtext, ttk
+from tkinter import messagebox, scrolledtext
 from functools import partial 
 
 class ScraperGUI:
