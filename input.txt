@@ -1,19 +1,39 @@
-Gaziosmanpaşa özel hastane
-Güngören özel hastane
-Kadıköy özel hastane
-Kağıthane özel hastane
-Kartal özel hastane
-Küçükçekmece özel hastane
-Maltepe özel hastane
-Pendik özel hastane
-Sancaktepe özel hastane
-Sarıyer özel hastane
-Silivri özel hastane
-Sultanbeyli özel hastane
-Sultangazi özel hastane
-Şile özel hastane
-Şişli özel hastane
-Tuzla özel hastane
-Ümraniye özel hastane
-Üsküdar özel hastane
-Zeytinburnu özel hastane
+Adalar veteriner
+Arnavutköy veteriner
+Ataşehir veteriner
+Avcılar veteriner
+Bağcılar veteriner
+Bahçelievler veteriner
+Bakırköy veteriner
+Başakşehir veteriner
+Bayrampaşa veteriner
+Beşiktaş veteriner
+Beykoz veteriner
+Beylikdüzü veteriner
+Beyoğlu veteriner
+Büyükçekmece veteriner
+Çatalca veteriner
+Çekmeköy veteriner
+Esenler veteriner
+Esenyurt veteriner
+Eyüpsultan veteriner
+Fatih veteriner
+Gaziosmanpaşa veteriner
+Güngören veteriner
+Kadıköy veteriner
+Kağıthane veteriner
+Kartal veteriner
+Küçükçekmece veteriner
+Maltepe veteriner
+Pendik veteriner
+Sancaktepe veteriner
+Sarıyer veteriner
+Silivri veteriner
+Sultanbeyli veteriner
+Sultangazi veteriner
+Şile veteriner
+Şişli veteriner
+Tuzla veteriner
+Ümraniye veteriner
+Üsküdar veteriner
+Zeytinburnu veteriner
