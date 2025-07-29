@@ -184,7 +184,7 @@ class GoogleMapsScraper:
             
             # Scroll the pane, not the whole page
             await listings_locator.last.hover()
-            await page.mouse.wheel(0, random.randint(8000, 10000))
+            await page.mouse.wheel(0, 10000)
             await asyncio.sleep(random.randrange(2,4)) # Wait for new results to load
 
         # Return only up to total_results listings
