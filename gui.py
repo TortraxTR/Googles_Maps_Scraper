@@ -101,7 +101,7 @@ class ScraperGUI:
                 messagebox.showerror("Input Error", "Please provide at least one category and location.")
                 return 
             else:
-                search_queries = [f"{c.strip()} {l.strip()}" for c in categories_str.strip(",") for l in locations_str.strip(",")]
+                search_queries = [f"{c.strip()} {l.strip()}" for c in categories_str.split(",") for l in locations_str.split(",")]
 
         try:
             total_results = int(total_str) if total_str else 1_000_000
