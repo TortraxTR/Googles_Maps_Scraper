@@ -1,4 +1,19 @@
-İzmit eczane
-Derince eczane
-Başiskele eczane
-Kartepe eczane
+Gaziosmanpaşa özel hastane
+Güngören özel hastane
+Kadıköy özel hastane
+Kağıthane özel hastane
+Kartal özel hastane
+Küçükçekmece özel hastane
+Maltepe özel hastane
+Pendik özel hastane
+Sancaktepe özel hastane
+Sarıyer özel hastane
+Silivri özel hastane
+Sultanbeyli özel hastane
+Sultangazi özel hastane
+Şile özel hastane
+Şişli özel hastane
+Tuzla özel hastane
+Ümraniye özel hastane
+Üsküdar özel hastane
+Zeytinburnu özel hastane

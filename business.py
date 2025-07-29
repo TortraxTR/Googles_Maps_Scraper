@@ -10,6 +10,7 @@ class Business:
     Using a dataclass provides type hints and a structured way to store data.
     """
     name: str
+    business_link: str
     reviews: int
     address: str
     phone_number: str 

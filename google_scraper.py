@@ -272,7 +272,8 @@ class GoogleMapsScraper:
                 return await page.locator(selector).first.inner_text(timeout=5000)
             except Exception as e:
                 return ""
-
+        
+        business_link = page.url
         name = await get_text(UI_SELECTORS["business_name"])
         address = await get_text(UI_SELECTORS["address"])
         website = await get_text(UI_SELECTORS["website"])
@@ -288,6 +289,7 @@ class GoogleMapsScraper:
 
         return Business(
             name=name.strip(),
+            business_link = business_link.strip(),
             reviews=reviews,
             address=address.strip(),
             website=f"https://www.{website.strip()}" if website and not website.strip().startswith("http") else website.strip(),
